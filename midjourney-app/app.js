@@ -178,20 +178,32 @@
 	async function generateWithMidjourney(prompt, refs) {
 		// Simulated progress
 		await simulateProgress();
+		// Preferred: Youware SDK if present
 		if (window.youwareAI && window.youwareAI.images) {
-			const response = await window.youwareAI.images.generate({
-				model: 'midjourney',
-				prompt,
-				references: refs && refs.length ? refs.map(r => r.dataUrl) : undefined,
-				count: 4,
-				response_format: 'url'
-			});
-			const urls = (response && response.data) ? response.data.map(d => d.url) : [];
-			if (urls.length === 4) return urls;
+			try {
+				const response = await window.youwareAI.images.generate({
+					model: 'midjourney',
+					prompt,
+					references: refs && refs.length ? refs.map(r => r.dataUrl) : undefined,
+					count: 4,
+					response_format: 'url'
+				});
+				const urls = (response && response.data) ? response.data.map(d => d.url) : [];
+				if (urls.length === 4) return urls;
+			} catch (e) {
+				console.warn('Youware generation failed, falling back to Pollinations.', e);
+			}
 		}
-		// Fallback placeholders (client-only demo)
+		// Fallback: Pollinations (no key) for real prompt-conditioned images
+		return generateWithPollinations(prompt);
+	}
+
+	function generateWithPollinations(prompt) {
 		const seed = Math.random().toString(36).slice(2, 8);
-		return [0,1,2,3].map(i => `https://picsum.photos/seed/${seed}-${i}/768/1024`);
+		const base = 'https://image.pollinations.ai/prompt/';
+		const enc = encodeURIComponent(prompt);
+		// Unique signatures to avoid caching the same image
+		return [0,1,2,3].map(i => `${base}${enc}?width=768&height=1024&seed=${seed}-${i}`);
 	}
 
 	function resetResultsUI() {
@@ -285,9 +297,20 @@
 
 	// Downloads
 	async function downloadImage(url, filename) {
-		const a = document.createElement('a');
-		a.href = url; a.download = filename || 'image.jpg';
-		document.body.appendChild(a); a.click(); a.remove();
+		try {
+			const response = await fetch(url, { mode: 'cors', cache: 'no-store' });
+			const blob = await response.blob();
+			const objectUrl = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = objectUrl; a.download = filename || 'image.jpg';
+			document.body.appendChild(a); a.click(); a.remove();
+			URL.revokeObjectURL(objectUrl);
+		} catch (e) {
+			// Fallback to direct link if CORS blocks blob download
+			const a = document.createElement('a');
+			a.href = url; a.target = '_blank'; a.rel = 'noopener';
+			document.body.appendChild(a); a.click(); a.remove();
+		}
 	}
 
 	// History
