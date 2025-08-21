@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.python-version
+.venv/
+
+# Environment
+.env
+.env.*
+
+# Logs / PIDs
+server.log
+.server.pid
+*.log
+
+# Bootstrap artifacts
+get-pip.py
+
+# AI generator specific
+ai-generator/.venv/
+ai-generator/__pycache__/
+ai-generator/server.log
+ai-generator/.server.pid
+ai-generator/get-pip.py
+
+# OS
+.DS_Store

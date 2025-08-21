@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>AI Generator</title>
+	<style>
+		:root { color-scheme: light dark; }
+		body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; margin: 0; padding: 0; }
+		header { padding: 16px 20px; border-bottom: 1px solid #ccc; }
+		main { padding: 20px; max-width: 900px; margin: 0 auto; }
+		label { display: block; margin-top: 12px; font-weight: 600; }
+		textarea { width: 100%; min-height: 140px; padding: 12px; font-size: 15px; }
+		.controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+		.controls > div { display: flex; flex-direction: column; }
+		button { margin-top: 16px; padding: 10px 14px; font-size: 15px; cursor: pointer; }
+		.output { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; border: 1px solid #ccc; padding: 12px; border-radius: 8px; min-height: 160px; margin-top: 16px; }
+		.status { font-size: 13px; opacity: 0.7; margin-top: 8px; }
+	</style>
+</head>
+<body>
+	<header>
+		<h1>AI Generator</h1>
+	</header>
+	<main>
+		<label for="prompt">Prompt</label>
+		<textarea id="prompt" placeholder="Write a short story about a time-traveling botanist..."></textarea>
+		<div class="controls">
+			<div>
+				<label for="provider">Provider</label>
+				<select id="provider">
+					<option value="auto" selected>auto</option>
+					<option value="openai">openai</option>
+					<option value="markov">markov</option>
+				</select>
+			</div>
+			<div>
+				<label for="model">Model</label>
+				<input id="model" value="gpt-4o-mini" />
+			</div>
+			<div>
+				<label for="maxTokens">Max tokens</label>
+				<input id="maxTokens" type="number" value="200" min="1" max="2000" />
+			</div>
+			<div>
+				<label for="temperature">Temperature</label>
+				<input id="temperature" type="number" value="0.7" min="0" max="2" step="0.1" />
+			</div>
+		</div>
+		<button id="generate">Generate</button>
+		<div class="status" id="status"></div>
+		<div class="output" id="output"></div>
+	</main>
+	<script>
+		const el = (id) => document.getElementById(id);
+		const out = el('output');
+		const statusEl = el('status');
+		const btn = el('generate');
+
+		function append(text) {
+			out.textContent += text;
+		}
+
+		async function streamGenerate() {
+			const prompt = el('prompt').value.trim();
+			const provider = el('provider').value;
+			const model = el('model').value.trim();
+			const maxTokens = parseInt(el('maxTokens').value, 10) || 200;
+			const temperature = parseFloat(el('temperature').value) || 0.7;
+			if (!prompt) {
+				alert('Please enter a prompt.');
+				return;
+			}
+			btn.disabled = true;
+			out.textContent = '';
+			statusEl.textContent = 'Generating...';
+			try {
+				const res = await fetch('/api/generate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ prompt, provider, model, maxTokens, temperature })
+				});
+				if (!res.ok || !res.body) {
+					statusEl.textContent = 'Error: ' + res.status + ' ' + res.statusText;
+					btn.disabled = false;
+					return;
+				}
+				const reader = res.body.getReader();
+				const decoder = new TextDecoder();
+				let buffer = '';
+				while (true) {
+					const { value, done } = await reader.read();
+					if (done) break;
+					buffer += decoder.decode(value, { stream: true });
+					let parts = buffer.split('\n\n');
+					buffer = parts.pop() || '';
+					for (const part of parts) {
+						const line = part.trim();
+						if (!line.startsWith('data: ')) continue;
+						const jsonStr = line.slice(6);
+						try {
+							const evt = JSON.parse(jsonStr);
+							if (evt.error) {
+								statusEl.textContent = 'Error: ' + evt.error;
+								btn.disabled = false;
+								return;
+							}
+							if (evt.text) append(evt.text);
+							if (evt.done) {
+								statusEl.textContent = 'Done';
+								btn.disabled = false;
+								return;
+							}
+						} catch (e) {
+							console.error('Parse error', e);
+						}
+					}
+				}
+			} catch (err) {
+				console.error(err);
+				statusEl.textContent = 'Request failed';
+			} finally {
+				btn.disabled = false;
+			}
+		}
+
+		btn.addEventListener('click', streamGenerate);
+	</script>
+</body>
+</html>
