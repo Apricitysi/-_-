@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Midjourney AI Image Generator</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+	<link rel="stylesheet" href="./styles.css" />
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='48' fill='%23F2330D'/%3E%3Cpath fill='white' d='M58 162c22-9 46-37 70-81c5 41 15 73 29 95c10 16 25 27 45 34c-23 9-51 7-85-6c-23-9-42-19-59-42Z'/%3E%3C/svg%3E" />
+
+	<!-- Youware SDKs (placeholders). If available, these will provide real AI integrations. -->
+	<script defer src="https://cdn.jsdelivr.net/gh/youware-ai/cdn@latest/youware-ai.min.js"></script>
+	<script defer src="https://cdn.jsdelivr.net/gh/youware-ai/cdn@latest/youware-openai.min.js"></script>
+	<script defer src="https://cdn.jsdelivr.net/gh/youware-ai/cdn@latest/youware-zod.min.js"></script>
+
+	<script defer src="./app.js"></script>
+</head>
+<body>
+	<header class="page-header">
+		<div class="brand">
+			<div class="logo" aria-hidden="true">
+				<svg viewBox="0 0 256 256" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+					<rect width="256" height="256" rx="48" fill="#F2330D" />
+					<path fill="white" d="M58 162c22-9 46-37 70-81c5 41 15 73 29 95c10 16 25 27 45 34c-23 9-51 7-85-6c-23-9-42-19-59-42Z"/>
+				</svg>
+			</div>
+			<h1 class="title">Midjourney AI Image Generator</h1>
+		</div>
+		<p class="subtitle">Create high‑quality AI art with an elegant, beginner‑friendly interface.</p>
+	</header>
+
+	<main class="panels">
+		<!-- References Panel -->
+		<section class="panel" id="panel-references" aria-labelledby="references-title">
+			<div class="panel-header">
+				<h2 id="references-title">References</h2>
+				<div class="panel-actions">
+					<label class="btn ghost" for="reference-input">Add Images</label>
+					<input id="reference-input" type="file" accept="image/*" multiple hidden />
+				</div>
+			</div>
+			<div class="panel-body references-body">
+				<div id="reference-dropzone" class="dropzone" tabindex="0" aria-label="Drop reference images here or click to upload">
+					<div class="dropzone-inner">
+						<p>Drag & drop images
+							<span class="muted">or click to upload</span>
+						</p>
+						<p class="small muted">JPG, PNG, WEBP</p>
+					</div>
+				</div>
+				<div id="reference-grid" class="reference-grid" aria-live="polite"></div>
+			</div>
+		</section>
+
+		<!-- Prompt Panel -->
+		<section class="panel" id="panel-prompt" aria-labelledby="prompt-title">
+			<div class="panel-header">
+				<h2 id="prompt-title">Prompt</h2>
+				<div class="panel-actions">
+					<button id="optimize-btn" class="btn ghost" type="button" title="Optimize with Claude">Optimizer</button>
+				</div>
+			</div>
+			<div class="panel-body prompt-body">
+				<textarea id="prompt-input" rows="10" spellcheck="false"></textarea>
+				<div class="prompt-meta">
+					<span id="prompt-length" class="muted">0 chars</span>
+					<span id="model-label" class="muted">Model: midjourney • claude-4-sonnet</span>
+				</div>
+				<div class="panel-footer">
+					<button id="generate-btn" class="btn primary" type="button">Generate</button>
+				</div>
+			</div>
+		</section>
+
+		<!-- Results Panel -->
+		<section class="panel" id="panel-results" aria-labelledby="results-title">
+			<div class="panel-header">
+				<h2 id="results-title">Results</h2>
+				<div class="panel-actions">
+					<button id="download-all-btn" class="btn ghost" type="button" disabled>Download</button>
+				</div>
+			</div>
+			<div class="panel-body results-body">
+				<div id="results-guidance" class="guidance">
+					<p>Enter a prompt and click <strong>Generate</strong> to create 4 images. You can also add reference images for style guidance.</p>
+				</div>
+				<div id="progress" class="progress hidden" aria-live="polite" aria-busy="true">
+					<div class="progress-bar"><span id="progress-bar-fill" style="width:0%"></span></div>
+					<p id="progress-text">Initializing… 0%</p>
+				</div>
+				<div id="results-grid" class="results-grid" aria-live="polite"></div>
+			</div>
+		</section>
+	</main>
+
+	<!-- History Section -->
+	<section class="history" id="history-section" hidden>
+		<button id="history-toggle" class="history-toggle" aria-expanded="false" aria-controls="history-content">
+			<span>Generation History</span>
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+		</button>
+		<div id="history-content" class="history-content" hidden></div>
+	</section>
+
+	<!-- Image Preview Modal -->
+	<div id="preview-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+		<div class="modal-backdrop" data-close="true"></div>
+		<div class="modal-content">
+			<button class="modal-close" id="modal-close" aria-label="Close preview" data-close="true">×</button>
+			<a id="modal-download" class="btn primary modal-download" href="#" download>Download</a>
+			<img id="modal-image" alt="Generated preview" />
+			<div id="modal-thumbs" class="modal-thumbs"></div>
+		</div>
+	</div>
+
+	<!-- Templates -->
+	<template id="history-item-template">
+		<details class="history-item">
+			<summary>
+				<div class="history-summary">
+					<div class="history-prompt"></div>
+					<div class="history-meta"></div>
+				</div>
+			</summary>
+			<div class="history-images"></div>
+		</details>
+	</template>
+
+	<!-- Default prompt for initialization -->
+	<script>
+		window.__DEFAULT_PROMPT__ = "minimalist rock floating in air, aura, water waves, centered, 3d, calm, norwegian nature, minimalist night, fog, warm warm moonlight in the fog --ar 2:3 --style raw --sref 3417747545 --stylize 500";
+	</script>
+</body>
+</html>
+
